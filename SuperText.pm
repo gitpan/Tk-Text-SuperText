@@ -1,8 +1,11 @@
 ##
 #
 # $Author: alex $
-# $Revision: 1.33 $
+# $Revision: 1.34 $
 # $Log: SuperText.pm,v $
+# Revision 1.34  2001/01/17 17:35:51  alex
+# TextANSIColor.pm cool support and bug fixes by Jim Turner
+#
 # Revision 1.33  1999/07/11 09:43:51  alex
 # Fixed "\" matching char bug
 #
@@ -73,12 +76,18 @@ use Tk qw(800 Ev);
 require Tk::Text;
 require Tk::Derived;
 
+
+#+20010117 JWT TextANSIColor support
+my $ansicolor = 0;
+eval 'use Term::ANSIColor; 1' or $ansicolor = -1;
+#+
+
 use Carp;
 use strict;
 use vars qw($VERSION @ISA @EXPORT);
 
 @EXPORT = qw(
-	mouseSetInsert mouseSelect mouseSelectWord mouseSelectLine mouseSelectAdd 
+	mouseSetInsert mouseSelect mouseSelectWord mouseSelectLine mouseSelectAdd mouseSelectChar
 	mouseSelectAddWord mouseSelectAddLine mouseSelectAutoScan mouseSelectAutoScanStop 
 	mouseMoveInsert mouseRectSelection mouseMovePageTo mouseMovePage mousePasteSelection 
 	moveLeft selectLeft selectRectLeft moveLeftWord selectLeftWord 
@@ -95,12 +104,32 @@ use vars qw($VERSION @ISA @EXPORT);
 	leftTab copy cut paste inlinePaste undo redo destroy keyPress menuSelect noOP
 );
 
-$VERSION = '0.9.3';
+$VERSION = '0.9.4';
 @ISA = qw(Tk::Derived Tk::Text Exporter);
 
 use base qw(Tk::Text);
 
 Construct Tk::Widget 'SuperText';
+
+my (%fgcolors, %bgcolors, $clear, $code_bold, $code_uline, @colors);
+
+#+20010117 JWT TextANSIColor support
+unless ($ansicolor == -1)
+{
+	$clear = color('clear');  # Code to reset control codes
+	$code_bold = color('bold');
+	$code_uline= color('underline');
+	@colors = qw/black red green yellow blue magenta cyan white/;
+	for (@colors)
+	{
+		my $fg = color($_);
+		my $bg = color("on_$_");
+		
+		$fgcolors{$fg} = "ANSIfg$_";
+		$bgcolors{$bg} = "ANSIbg$_";
+	}
+}
+#+
 
 # returns an hash with the default events and key binds
 sub DefaultEvents {
@@ -111,6 +140,7 @@ sub DefaultEvents {
 		'MouseSelect'				=>	['<B1-Motion>'],
 		'MouseSelectWord'			=>	['<Double-1>'],
 		'MouseSelectLine'			=>	['<Triple-1>'],
+		'MouseSelectChar'			=>	['<ButtonRelease-3>'],    #ADDED 1999/07 by JWT TO CAUSE RIGHT BUTTON TO EXTEND SELECT!
 		'MouseSelectAdd'			=>	['<Shift-1>'],
 		'MouseSelectAddWord'		=>	['<Double-Shift-1>'],
 		'MouseSelectAddLine'		=>	['<Triple-Shift-1>'],
@@ -158,7 +188,10 @@ sub DefaultEvents {
 		'MovePageRight'			=>	['<Control-Next>'],
 		'SetSelectionMark'			=>	['<Control-space>','<Select>'],
 		'SelectToMark'				=>	['<Shift-Control-space>','<Shift-Select>'],
-		'SelectAll'				=>	['<Control-a>'],
+#=20010117 JWT selection extensions
+#		'SelectAll'				=>	['<Control-a>'],
+		'SelectAll'				=>	['<Triple-1><Button-1>','<Control-a>','<Control-slash>'],
+#=
 		'SelectionShiftLeft'		=>	['<Control-comma>'],
 		'SelectionShiftLeftTab'	=>	['<Control-Alt-comma>'],
 		'SelectionShiftRight'		=>	['<Control-period>'],
@@ -169,7 +202,7 @@ sub DefaultEvents {
 		'AutoIndentEnter'			=>	['<Control-Return>'],
 		'NoAutoIndentEnter'		=>	['<Shift-Return>'],
 		'Del'						=>	['<Delete>'],
-#-1999/07/11 alexiob@iname.com - Fixed win32 BackSpace bug thanks to Jim Turner
+#-1999/07/11 alexiob@dlevel.com - Fixed win32 BackSpace bug thanks to Jim Turner
 #		'BackSpace'				=>	['<BackSpace>'],
 		'DeleteToWordStart'		=>	['<Shift-BackSpace>'],
 		'DeleteToWordEnd'			=>	['<Shift-Delete>'],
@@ -187,7 +220,9 @@ sub DefaultEvents {
 		'RemoveMatch'				=>	['<Control-B>'],
 		'FindMatchingChar'			=>	['<Control-j>'],
 		'JumpToMatchingChar'		=>	['<Control-J>'],
-		
+#+20010117 JWT fix
+		'JumpToMatchingChar'		=>	['<Control-p>'],
+#+		
 		'Escape'					=>	['<Escape>'],
 		'Tab' 						=>	['<Tab>'],
 		'LeftTab' 					=>	['<Shift-Tab>'],
@@ -223,13 +258,21 @@ sub ClassInit
 
 sub Populate
 {
-	my	($w,@args) = @_;
+#+20010117 JWT TextANSIColor support
+	my	($w,$args) = @_;
 	
-	$w->SUPER::Populate(@args);
+	$w->{ansicolor} = 0;
+	$w->{ansicolor} = delete ($args->{-ansicolor})  if (defined($args->{-ansicolor}));
+#+
+
+	$w->SUPER::Populate($args);
 
 	# and set configuration parameters defaults
 	$w->ConfigSpecs(
 		'-indentmode'		=> ['PASSIVE','indentMode','IndentMode','auto'],
+#+20010117 JWT TextANSIColor support
+		'-ansicolor'		=> ['PASSIVE','ansicolor','ansicolor',undef],
+#+
 		'-undodepth'	 	=> ['PASSIVE','undoDepth','UndoDepth',undef],
 		'-redodepth' 		=> ['PASSIVE','redoDepth','RedoDepth',undef],
 		'-showmatching' 	=> ['PASSIVE','showMatching','ShowMatching',1],
@@ -244,6 +287,22 @@ sub Populate
 	$w->bindDefault;
 	# set undo block flag
 	$w->{UNDOBLOCK}=0;
+
+#+20010117 JWT TextANSIColor support
+	if ($w->{ansicolor})
+	{
+		# Setup tags
+		# colors
+		for (@colors)
+		{
+			$w->tagConfigure("ANSIfg$_", -foreground => $_);
+			$w->tagConfigure("ANSIbg$_", -background => $_);
+		}
+		# Underline
+		$w->tagConfigure("ANSIul", -underline => 1);
+		$w->tagConfigure("ANSIbd", -font => [-weight => "bold" ]);
+	}
+#+
 }
 
 # callbacks for options management
@@ -313,7 +372,158 @@ sub insert
 		$w->_BeginUndoBlock;
 		if($w->compare($s,'<',$w->index("$s lineend"))) {$w->delete($s);}
 	}
-	$w->SUPER::insert($s,$str,@tags);
+
+#-20010117 JWT TextANSIColor support
+#	$w->SUPER::insert($s,$str,@tags);
+#-
+#+20010117 JWT TextANSIColor support
+	if ($w->{ansicolor})
+	{
+		#$w->SUPER::insert($s,$str,@tags);  #JWT:01042001: REPL. W/NEXT LINES FOR TEXTANSICOLOR!
+		my (@userstuff) = ($str,@tags);
+		my ($pos) = $s;
+		
+		# This is the array containing text and tags pairs
+		# We pass this to SUPER::insert 
+		# as (POS, string, [tags], string, [tags]....)
+		# insert_array contains string,[tags] pairs
+		my @insert_array = ();
+		
+		# Need to loop over @userstuff
+		# extracting out the text string and any user supplied tags.
+		# note that multiple sets of text strings and tags can be supplied
+		# as arguments to the insert() method, and we have to process
+		# each set in turn.
+		# Use an old-fashioned for since we have to extract two items at 
+		# a time
+		
+		for (my $i=0; $i <= $#userstuff; $i += 2)
+		{
+			
+			my $text = $userstuff[$i];
+			my $utags = $userstuff[$i+1];
+			
+			# Store the usertags in an array, expanding the
+			# array ref if required
+			my @taglist = ();
+			if (ref($utags) eq 'ARRAY')
+			{
+				@taglist = @{$utags};
+			}
+			else
+			{
+				@taglist = ($utags);
+			}
+			
+			# Split the string on control codes
+			# returning the codes as well as the strings between
+			# the codes
+			# Note that this pattern also checks for the case when
+			# multiple escape codes are embedded together separated
+			# by semi-colons.
+			my @split = split /(\e\[(?:\d{1,2};?)+m)/, $text;
+			# Array containing the tags to use with the insertion
+			# Note that this routine *always* assumes the colors are reset
+			# after the last insertion. ie it does not allow the colors to be 
+			# remembered between calls to insert(). 
+			my @ansitags = ();
+			
+			# Current text string
+			my $cur_text = undef;
+			
+			# Now loop over the split strings
+			for my $part (@split)
+			{
+				
+				# If we have a plain string, just store it
+				if ($part !~ /^\e/)
+				{
+					$cur_text = $part;
+				}
+				else
+				{
+					# We have an escape sequence
+					# Need to store the current string with required tags
+					# Include the ansi tags and the user-supplied tag list
+					push(@insert_array, $cur_text, [@taglist, @ansitags])
+					if defined $cur_text;
+					
+					# There is no longer a 'current string'
+					$cur_text = undef;
+					
+					# The escape sequence can have semi-colon separated bits
+					# in it. Need to strip off the \e[ and the m. Split on
+					# semi-colon and then reconstruct before comparing
+					# We know it matches \e[....m so use substr
+					
+					# Only bother if we have a semi-colon
+					
+					my @escs = ($part);
+					if ($part =~ /;/)
+					{
+						my $strip = substr($part, 2, length($part) - 3);
+						
+						# Split on ; (overwriting @escs)
+						@escs = split(/;/,$strip);
+						
+						# Now attach the correct escape sequence
+					foreach (@escs) { $_ = "\e[${_}m" }
+					}
+					
+					# Loop over all the escape sequences
+					for my $esc (@escs)
+					{
+						
+						# Check what type of escape
+						if ($esc eq $clear)
+						{
+							# Clear all escape sequences
+							@ansitags = ();
+						}
+						elsif (exists $fgcolors{$esc})
+						{
+							# A foreground color has been specified
+							push(@ansitags, $fgcolors{$esc});
+						}
+						elsif (exists $bgcolors{$esc})
+						{
+							# A background color
+							push(@ansitags, $bgcolors{$esc});
+						}
+						elsif ($esc eq $code_bold)
+						{
+							# Boldify
+							push(@ansitags, "ANSIbd");
+						}
+						elsif ($esc eq $code_uline)
+						{
+							# underline
+							push(@ansitags, "ANSIul");
+						}
+						else
+						{
+							print "Unrecognised control code - ignoring\n";
+							foreach (split //, $esc)
+							{
+								print ord($_) . ": $_\n";
+							}
+						}			
+					}
+				}
+			}
+			# If we still have a current string, push that onto the array
+			push(@insert_array, $cur_text, [@taglist, @ansitags])
+					if defined $cur_text;
+		}
+		# Finally, insert  the string
+		$w->SUPER::insert($pos, @insert_array)
+		if $#insert_array > 0;		
+	}
+	else
+	{
+		$w->SUPER::insert($s,$str,@tags);  #JWT:01042001: REPL. W/NEXT LINES FOR TEXTANSICOLOR!
+	}
+#+
 
 	# match coupled chars
 	if((!defined $w->tag('ranges','sel')) && $w->cget('-showmatching') == 1) {
@@ -374,9 +584,69 @@ sub removeMatch
 	else {$w->tag('remove','match','1.0','end');}
 }
 
+
+#+20010117 JWT TextANSIColor support
+#sub get
+#{
+#	my $self= shift;  # The widget reference
+#	return $self->SUPER::get(@_);
+#}
+
+sub getansi
+{
+	my $self= shift;  # The widget reference
+	my (@args) = @_;
+	return $self->get(@args)  unless ($self->{ansicolor});
+
+	my $i;
+	my (@xdump);
+	my $tagflag = 0;
+	my $res = '';
+
+	@xdump = $self->dump(@args);
+	for ($i=0;$i<=$#xdump;$i+=3)
+	{
+		if ($xdump[$i] eq 'tagon')
+		{
+			if ($xdump[$i+1] =~ /^ANSIfg(\w+)/)
+			{
+				$res .= color($1);
+				$tagflag = 1;
+			}
+			elsif ($xdump[$i+1] =~ /^ANSIbg(\w+)/)
+			{
+				$res .= color("on_$1");
+				$tagflag = 1;
+			}
+			elsif ($xdump[$i+1] =~ /^ANSIbd/)
+			{
+				$res .= color('bold');
+				$tagflag = 1;
+			}
+			elsif ($xdump[$i+1] =~ /^ANSIul/)
+			{
+				$res .= color('underline');
+				$tagflag = 1;
+			}
+			#$res .= $xdump[$i+4]  if ($xdump[$i+3] eq 'text');
+		}
+		if ($tagflag && $xdump[$i] eq 'tagoff')
+		{
+			$res .= color('reset');
+			$tagflag = 0;
+		}
+		if ($xdump[$i] eq 'text')
+		{
+			$res .= $xdump[$i+1];
+		}
+	};
+	return $res;
+}
+#+
+
 1;
 
-__END__
+#__END__
 
 # clipboard methods that must be overriden for rectangular selections
 
@@ -507,7 +777,7 @@ sub RemoveTextBinds
 	my (@binds) = $w->bind($class);
 	
 	foreach $b (@binds) {
-#=1999/07/11 alexiob@iname.com - Fixed win32 BackSpace bug thanks to Jim Turner
+#=1999/07/11 alexiob@dlevel.com - Fixed win32 BackSpace bug thanks to Jim Turner
 #		$w->bind($class,$b,"");
 		$w->bind($class,$b,"") unless ($b =~ /Key-BackSpace/);
 	}	
@@ -523,7 +793,7 @@ sub bindDefault
 		$w->eventAdd("<<$e>>",@{$$events{$e}});
 		$w->bind($w,"<<$e>>",lcfirst($e));
 	}
-#+1999/07/11 alexiob@iname.com - Fixed win32 BackSpace bug thanks to Jim Turner
+#+1999/07/11 alexiob@dlevel.com - Fixed win32 BackSpace bug thanks to Jim Turner
 	$w->bind("<Key-BackSpace>", sub {Tk->break;});
 }
 
@@ -822,6 +1092,18 @@ sub mouseSelectLine
 	$w->SelectTo($ev->xy,'line');
 	Tk::catch {$w->markSet('insert',"sel.first")};
 }
+
+#+20010117 JWT cause right button to extend select
+sub mouseSelectChar    
+{
+	my $w = shift;
+	my $ev = $w->XEvent;
+
+	$Tk::selectionType='normal';
+	$w->SelectTo($ev->xy,'char');
+	Tk::catch {$w->markSet('insert',"sel.first")};
+}
+#+
 
 sub mouseSelectAdd
 {
@@ -1732,9 +2014,16 @@ sub keyPress
 sub menuSelect
 {
 	my $w = shift;
-	my $ev = $w->XEvent;
+	#NOTE: (JWT) ALSO FIXED IN auto/Tk/Text/SuperText/menuSelect.al!!!!!
 
-	$w->TraverseToMenu($ev->K);
+#+20010117 JWT don't do these 2 lines in windows
+	unless ($^O =~ /Win/)
+	{
+		my $ev = $w->XEvent;
+	
+		$w->TraverseToMenu($ev->K);
+	}
+#+
 }
 
 sub noOP
@@ -1764,6 +2053,7 @@ B<-cursor>	B<-highlightthickness>	B<-padx>	B<-setgrid>
 B<-exportselection>	B<-insertbackground>	B<-pady>	B<-takefocus>
 B<-font>	B<-insertborderwidth>	B<-relief>	B<-xscrollcommand>
 B<-foreground>	B<-insertofftime>	B<-selectbackground>	B<-yscrollcommand>
+B<-ansicolor>
 
 See L<Tk::options> for details of the standard options.
 
@@ -1857,6 +2147,15 @@ For double couples (I<"">) the match is done only on the forwarding chars.
 =item Switch:	B<-insertmode>
 
 Sets the default insert mode: B<insert> or B<overwrite> .
+
+=item Name:	B<ansiColor>
+
+=item Class:	B<AnsiColor>
+
+=item Switch:	B<-ansicolor>
+
+Enables or disables use of Tk-TextANSIColor module (by Tim Jenness <t.jenness@jach.hawaii.edu>).
+This option was implemented by Jim Turner <turnerjw2@netscape.net> (THANKS for the support!)
 
 =back
 
@@ -2249,7 +2548,7 @@ I<$widget>-E<gt>B<menuSelect>
 
 =head1 AUTHOR
 
-Alessandro Iob E<lt>I<alexiob@iname.com>E<gt>.
+Alessandro Iob E<lt>I<alexiob@dlevel.com>E<gt>.
 
 =head1 SEE ALSO
 

@@ -7,6 +7,6 @@ WriteMakefile(
 	'dist' 		=>	{COMPRESS => 'gzip -9f',SUFFIX => '.gz'},
 	($] >= 5.004 ?
     	(ABSTRACT	=>	'Advanced Tk::Text widget wrapper',
-    	 AUTHOR	=>	'Alessandro Iob (alexiob@iname.com)') : ()),
+    	 AUTHOR	=>	'Alessandro Iob (alexiob@dlevel.com)') : ()),
 	'PREREQ_PM' => {'Tk::Text' => 0}
 );

@@ -9,7 +9,7 @@ DESCRIPTION
 AUTHOR
 	Send comments,suggestions,flames :) to:
 	
-	Alessandro Iob <alexiob@iname.com>
+	Alessandro Iob <alexiob@dlevel.com>
 	
 COPYRIGHT
 	
@@ -31,6 +31,10 @@ HOW TO BUILD AND INSTALL
 	make install
 	
 CHANGES
+
+0.9.4	-	Added Tk-TextANSIColor module support and fixed multiplatform bugs.
+		Everything provided by Jim Turner (<turnerjw2@netscape.net>).
+		THANKS!!!
 
 0.9.3	-	Windows backspace bug fixed (thanks to Jim Turner).
 			"\" matching char bug fixed
