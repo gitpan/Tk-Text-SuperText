@@ -1,22 +1,13 @@
 ##
 #
 # $Author: alex $
-# $Revision: 1.15 $
+# $Revision: 1.26 $
 # $Log: SuperText.pm,v $
-# Revision 1.15  1999/02/11 19:30:05  alex
-# *** Empty log message ***
+# Revision 1.26  1999/02/18 20:55:08  alex
+# Speedup for matching and shifting
 #
-# Revision 1.14  1999/02/11 19:02:18  alex
-# *** Empty log message ***
-#
-# Revision 1.13  1999/02/11 18:59:44  alex
-# *** Empty log message ***
-#
-# Revision 1.12  1999/02/11 18:27:50  alex
-# *** Empty log message ***
-#
-# Revision 1.11  1999/02/11 18:24:25  alex
-# Removed Stupid typo error
+# Revision 1.24  1999/02/13 20:32:40  alex
+# FIXME: block operations are slow!!!!
 #
 # Revision 1.10  1999/02/11 18:22:02  alex
 # Removed Stupid typo error
@@ -53,15 +44,34 @@
 package Tk::Text::SuperText;
 
 use AutoLoader;
+use Exporter ();
 require Tk::Text;
 require Tk::Derived;
 
 use Carp;
 use strict;
-use vars qw($VERSION @ISA);
+use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = '0.8.2';
-@ISA = qw(Tk::Derived Tk::Text);
+@EXPORT = qw(
+	mouseSetInsert mouseSelect mouseSelectWord mouseSelectLine mouseSelectAdd 
+	mouseSelectAddWord mouseSelectAddLine mouseSelectAutoScan mouseSelectAutoScanStop 
+	mouseMoveInsert mouseRectSelection mouseMovePageTo mouseMovePage mousePasteSelection 
+	moveLeft selectLeft selectRectLeft moveLeftWord selectLeftWord 
+	moveRight selectRight selectRectRight moveRightWord selectRightWord moveUp selectUp 
+	selectRectUp moveUpParagraph selectUpParagraph moveDown selectDown selectRectDown 
+	moveDownParagraph selectDownParagraph moveLineStart selectToLineStart moveTextStart 
+	selectToTextStart moveLineEnd selectToLineEnd moveTextEnd selectToTextEnd movePageUp 
+	selectToPageUp movePageLeft movePageDown selectToPageDown movePageRight 
+	setSelectionMark selectToMark selectAll selectionShiftLeft selectionShiftLeftTab 
+	selectionShiftRight selectionShiftRightTab ins enter autoIndentEnter 
+	noAutoIndentEnter del backSpace deleteToWordStart deleteToWordEnd deleteToLineStart 
+	deleteToLineEnd deleteWord deleteLine insertControlCode focusNext focusPrev 
+	flashMatchingChar removeMatch findMatchingChar jumpToMatchingChar escape tab 
+	leftTab copy cut paste inlinePaste undo redo destroy keyPress menuSelect noOP
+);
+
+$VERSION = '0.9';
+@ISA = qw(Tk::Derived Tk::Text Exporter);
 
 use base qw(Tk::Text);
 
@@ -436,7 +446,7 @@ sub SetCursor
 	}
 }	
 
-# redefine SetCursor for parentheses highlight
+# redefine Button1for parentheses highlight
 sub Button1
 {
 	my $w = shift;
@@ -553,7 +563,7 @@ sub undo
 					next;
 				} elsif($op eq '#_BlockEnd_#') {
 					$w->_AddRedo('#_BlockBegin_#');
-					return;
+					return 1;
 				}
 				# convert for redo
 				if($op =~ /insert$/) {
@@ -575,11 +585,12 @@ sub undo
 				if($op =~ /insert$/) {
 					$w->_AddRedo('delete',$s,$w->index('redopos'));
 				}
-				if($block == 0) {return;}
+				if($block == 0) {return 1;}
 			}
 		}
 	}
 	$w->bell;
+	return 0;
 }
 
 # redo last undone operation
@@ -599,16 +610,17 @@ sub redo
 					next;
 				} elsif($op eq '#_BlockEnd_#') {
 					$w->_AddUndo('#_BlockBegin_#');
-					return;
+					return 1;
 				}
 				$op =~ s/^SUPER:://;
 				$w->$op(@args);
 				$w->SetCursor($args[0]);
-				if($block == 0) {return;}
+				if($block == 0) {return 1;}
 			}
 		}
 	}
 	$w->bell;
+	return 0;
 }
 
 # add an undo command to the undo stack
@@ -874,7 +886,6 @@ sub mousePasteSelection
 		Tk::catch { $w->insert($ev->xy,$w->SelectionGet);};
 	}
 }
-
 
 sub KeySelect
 {
@@ -1316,17 +1327,26 @@ sub _SelectionShift
 	
 	if($ecol == 0) {$eline--;}
 	
+	my $s;
 	$w->_BeginUndoBlock;
 	if($dir eq "left") {
 		if($scol != 0) {$scol--;}
-		$w->delete($w->index("$sline.$scol"));
+		$w->delete("$sline.$scol");
 		for(my $i=$sline+1;$i <= $eline;$i++) {
-			$w->delete($w->index("$i.$scol"));
+			$s="$i.$scol";
+			if($w->compare($s,'==',$w->index("$s lineend"))) {next;}
+			$w->delete("$i.$scol");
+			$w->idletasks;
 		}
 	} elsif($dir eq "right") {
-		$w->insert($w->index("$sline.$scol"),$type);
+		$w->insert("$sline.$scol",$type);
 		for(my $i=$sline+1;$i <= $eline;$i++) {
-			$w->insert($w->index("$i.$scol"),$type);
+#			$w->insert("$i.$scol",$type);
+			$s="$i.$scol";
+			$w->markSet('undopos' => $s);
+			$w->SUPER::insert($s,$type);
+			$w->_AddUndo('delete',$s,$w->index('undopos'));
+			$w->idletasks;
 		}
 	}
 	$w->_EndUndoBlock;
@@ -1519,12 +1539,15 @@ sub _FindMatchingChar
 	if(!defined $mc) {return undef;}
 	
 	my $dir = ${$w->{MATCHINGCOUPLES}->{$sc}}[1];	# forward or backward search
-	my $spos=$w->index("$pos + $dir c");
+	my $spos=($dir == 1 ? $w->index("$pos + $dir c") : $w->index($pos));
 	my $d = 1;
 	my ($p,$c);
-	
+	my $match="[$mc|$sc]{1}";
+
 	if($dir == 1) {	# forward search
 		for($p=$spos;$w->compare($p,'<',$elimit);$p=$w->index("$p + 1c")) {
+			$p=$w->SUPER::search('-forwards','-regex','--',$match,$p,$elimit);
+			if(!defined $p) {return undef;}
 			$c=$w->get($p);
 			if($c eq $mc) {
 				$d--;
@@ -1536,6 +1559,8 @@ sub _FindMatchingChar
 		}
 	} else {	# backward search
 		for($p=$spos;$w->compare($p,'>=',$slimit);$p=$w->index("$p - 1c")) {
+			$p=$w->SUPER::search('-backwards','-regex','--',$match,$p);#,$slimit);
+			if(!defined $p) {return undef;}
 			$c=$w->get($p);
 			if($c eq $mc) {
 				$d--;
@@ -1618,6 +1643,7 @@ sub cut
 	my $w = shift;
 
 	$w->clipboardCut;
+	$w->see('insert');
 }
 
 sub paste
@@ -1625,25 +1651,33 @@ sub paste
 	my $w = shift;
 
 	$w->clipboardPaste;
+	$w->see('insert');
 }
 
 sub inlinePaste
 {
 	my $w = shift;
 	my ($l,$c) = split('\.',$w->index('insert'));
-	my $str;	
+	my $str;
+	my $f=0;
 	Tk::catch{$str=$w->clipboardGet;};
 	
 	if($str eq "") {return;}
 	$w->_BeginUndoBlock;
 	while($str =~ /(.*)\n+/g) {
 		$w->insert("$l.$c",$1);
-		my ($el,$ec) = split('\.',$w->index('end'));
-		if($l == $el) {$w->insert('end',"\n");}
+		if($f == 0) {
+			my ($el,$ec) = split('\.',$w->index('end'));
+			if($l == $el) {
+				$w->insert('end',"\n");
+				$f=1;
+			}
+		} else {$w->insert('end',"\n");}
 		$l++;
-		Tk::DoOneEvent(Tk::DONT_WAIT);
+		$w->idletasks;
 	}
 	$w->_EndUndoBlock;
+	$w->see('insert');
 }
 
 sub destroy

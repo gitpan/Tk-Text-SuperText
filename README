@@ -32,6 +32,12 @@ HOW TO BUILD AND INSTALL
 	
 CHANGES
 
+0.9	-	Removed all known bugs,
+			Speed up of parentheses matching and block shift.
+			Now it should be really usefull ;)
+			
+0.8.3	-	Added @EXPORT methods
+
 0.8.2	-	Corrected stupid bugs and typos
 
 0.8.1	-	Adjusted '-foreground' bug;
@@ -42,4 +48,4 @@ CHANGES
 	
 TODO
 
-	Configurable syntax highlighting.
+	Configurable syntax highlighting ( as a separate module???).
