@@ -1,3 +1,55 @@
+##
+#
+# $Author: alex $
+# $Revision: 1.15 $
+# $Log: SuperText.pm,v $
+# Revision 1.15  1999/02/11 19:30:05  alex
+# *** Empty log message ***
+#
+# Revision 1.14  1999/02/11 19:02:18  alex
+# *** Empty log message ***
+#
+# Revision 1.13  1999/02/11 18:59:44  alex
+# *** Empty log message ***
+#
+# Revision 1.12  1999/02/11 18:27:50  alex
+# *** Empty log message ***
+#
+# Revision 1.11  1999/02/11 18:24:25  alex
+# Removed Stupid typo error
+#
+# Revision 1.10  1999/02/11 18:22:02  alex
+# Removed Stupid typo error
+#
+# Revision 1.9  1999/02/11 10:52:44  alex
+# Changed DefaultEvent to return e reference to a hash
+#
+# Revision 1.8  1999/02/10 16:59:25  alex
+# *** Empty log message ***
+#
+# Revision 1.7  1999/02/09 23:20:27  alex
+# Selection Scroll bux fixed
+#
+# Revision 1.6  1999/02/09 22:22:52  alex
+# added public methods,jumpToMatchingChar,fixed '-foreground' bug
+#
+# Revision 1.5  1999/02/09 16:28:53  alex
+# made virtual events associated methods public,removed some block und
+#
+# Revision 1.4  1999/02/05 13:54:29  alex
+# catch some errors on undo/redo pop
+#
+# Revision 1.3  1999/02/05 13:32:44  alex
+# Fixed undo/redo blocks
+#
+# Revision 1.2  1999/02/04 11:25:46  alex
+# First stable version
+#
+# Revision 1.1  1999/01/24 11:09:31  alex
+# Initial revision
+#
+##
+
 package Tk::Text::SuperText;
 
 use AutoLoader;
@@ -8,7 +60,7 @@ use Carp;
 use strict;
 use vars qw($VERSION @ISA);
 
-$VERSION = '0.8.1';
+$VERSION = '0.8.2';
 @ISA = qw(Tk::Derived Tk::Text);
 
 use base qw(Tk::Text);
@@ -120,7 +172,7 @@ sub DefaultEvents {
 		'NoOP'						=>	['<Control-KeyPress>']
 	);
 	
-	return %events;	
+	return \%events;	
 }
 
 sub ClassInit
@@ -166,7 +218,7 @@ sub matchforeground
 {
 	my ($w,$val) = @_;
 	
-	if($val eq undef) {return $w->tagConfigure('match','-foreground');}
+	if(!defined $val) {return $w->tagConfigure('match','-foreground');}
 	$w->tagConfigure('match','-foreground' => $val);
 }
 
@@ -174,7 +226,7 @@ sub matchbackground
 {
 	my ($w,$val) = @_;
 	
-	if($val eq undef) {return $w->tagConfigure('match','-background');}
+	if(!defined $val) {return $w->tagConfigure('match','-background');}
 	$w->tagConfigure('match','-background' => $val);
 }
 
@@ -184,7 +236,7 @@ sub matchingcouples
 	my ($i,$dir);
 	
 
-	if($val eq undef) {return $w->{MATCHINGCOUPLES_STRING};}
+	if(!defined $val) {return $w->{MATCHINGCOUPLES_STRING};}
 	$w->{MATCHINGCOUPLES_STRING}=$val;
 
 	$w->{MATCHINGCOUPLES}={} unless exists $w->{MATCHINGCOUPLES};
@@ -199,7 +251,7 @@ sub insertmode
 {
 	my ($w,$val) = @_;
 	
-	if($val eq undef) {return $w->{INSERTMODE};}
+	if(!defined $val) {return $w->{INSERTMODE};}
 	$w->{INSERTMODE}=$val;
 }
 
@@ -240,11 +292,11 @@ sub insert
 			$slimit="$slimit.0";
 			$elimit=int($l*$elimit);
 			$elimit="$elimit.0";
-			my $i=$w->findMetchingChar($str,$s,$slimit,$elimit);
+			my $i=$w->_FindMatchingChar($str,$s,$slimit,$elimit);
 			if(defined $i) {
 				my $sel = Tk::catch {$w->tag('nextrange','match','1.0','end');};
 				if(defined $sel) {$w->tag('remove','match','match.first');}
-				$w->tag('add','match',$i,$w->index("$i + 1c"));
+				$w->tag('add','match',$i,$w->index("$i + 1 c"));
 				my $t=$w->cget('-matchhighlighttime');
 				if($t != 0) {$w->after($t,[\&removeMatch,$w,$i]);}
 			}
@@ -275,6 +327,17 @@ sub delete
 	$w->{LINESTART}=0;
 	$w->SUPER::delete($s,@_);
 	$w->_AddUndo('insert',$s,$str);
+}
+
+
+# used for removing match tag after some time
+# here so Tk::After doesn't complain
+sub removeMatch
+{
+	my ($w,$i) = @_;
+	
+	if(defined $i) {$w->tag('remove','match',$i);}
+	else {$w->tag('remove','match','1.0','end');}
 }
 
 1;
@@ -361,7 +424,7 @@ sub SetCursor
 			$slimit="$slimit.0";
 			$elimit=int($l*$elimit);
 			$elimit="$elimit.0";
-			my $i=$w->findMetchingChar($str,'insert',$slimit,$elimit);
+			my $i=$w->_FindMatchingChar($str,'insert',$slimit,$elimit);
 			if(defined $i) {
 				my $sel = Tk::catch {$w->tag('nextrange','match','1.0','end');};
 				if(defined $sel) {$w->tag('remove','match','match.first');}
@@ -391,7 +454,7 @@ sub Button1
 			$slimit="$slimit.0";
 			$elimit=int($l*$elimit);
 			$elimit="$elimit.0";
-			my $i=$w->findMetchingChar($str,'insert',$slimit,$elimit);
+			my $i=$w->_FindMatchingChar($str,'insert',$slimit,$elimit);
 			if(defined $i) {
 				my $sel = Tk::catch {$w->tag('nextrange','match','1.0','end');};
 				if(defined $sel) {$w->tag('remove','match','match.first');}
@@ -418,10 +481,10 @@ sub RemoveTextBinds
 sub bindDefault
 {
 	my $w = shift;
-	my (%events) = $w->DefaultEvents;
+	my $events = $w->DefaultEvents;
 	
-	foreach my $e (keys %events) {
-		$w->eventAdd("<<$e>>",@{$events{$e}});
+	foreach my $e (keys %$events) {
+		$w->eventAdd("<<$e>>",@{$$events{$e}});
 		$w->bind($w,"<<$e>>",lcfirst($e));
 	}
 }
@@ -435,7 +498,7 @@ sub bindDelete
 		# delete all events binds
 		my ($e);
 		
-		foreach $e ($w->DefaultEvents) {
+		foreach $e (%{$w->DefaultEvents}) {
 			$w->eventDelete($e);
 		}
 		return;
@@ -1125,7 +1188,7 @@ sub ScrollPages
 	$elimit="$elimit.0";
 	# position insert cursor at text begin/end if the text is scrolled to begin/end
 	if($count < 0 && $w->compare($slimit,'<=','1.0')) {return('1.0');}
-	elsif($count >= 0 && $w->compare($elimit,'>=','end')) {return('end');}
+	elsif($count >= 0 && $w->compare($elimit,'>=','end')) {return($w->index('end'));}
 	else {return $w->SUPER::ScrollPages($count);}
 }
 	
@@ -1448,7 +1511,7 @@ sub focusPrev
 }
 
 # find a matching char for the given one
-sub _FindMetchingChar
+sub _FindMatchingChar
 {
 	my ($w,$sc,$pos,$slimit,$elimit) = @_;
 	my $mc = ${$w->{MATCHINGCOUPLES}->{$sc}}[0];	# char to search
@@ -1494,7 +1557,7 @@ sub flashMatchingChar
 	my $str = $w->get('insert');
 	
 	if(exists %{$w->{MATCHINGCOUPLES}}->{$str}) {
-		my $i=$w->_FindMetchingChar($str,$s,"1.0","end");
+		my $i=$w->_FindMatchingChar($str,$s,"1.0","end");
 		if(defined $i) {
 			my $sel = Tk::catch {$w->tag('nextrange','match','1.0','end');};
 			if(defined $sel) {$w->tag('remove','match','match.first');}
@@ -1521,15 +1584,6 @@ sub jumpToMatchingChar
 	my $i = $w->flashMatchingChar;
 	
 	if(defined $i) {$w->SetCursor($i);}
-}
-
-# used for removing match tag after some time
-sub removeMatch
-{
-	my ($w,$i) = @_;
-	
-	if(defined $i) {$w->tag('remove','match',$i);}
-	else {$w->tag('remove','match','1.0','end');}
 }
 
 

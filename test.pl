@@ -1,4 +1,22 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -w
+##
+#
+# $Author: alex $
+# $Revision: 1.4 $
+# $Log: test.pl,v $
+# Revision 1.4  1999/02/10 16:59:33  alex
+# *** Empty log message ***
+#
+# Revision 1.3  1999/02/09 22:23:19  alex
+# nothing important
+#
+# Revision 1.2  1999/02/04 11:25:46  alex
+# First stable version
+#
+# Revision 1.1  1999/01/24 13:40:27  alex
+# Initial revision
+#
+##
 
 # Before `make install' is performed this script should be runnable with
 # `make test'. After `make install' it should work as `perl test.pl'

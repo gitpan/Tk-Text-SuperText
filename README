@@ -32,6 +32,8 @@ HOW TO BUILD AND INSTALL
 	
 CHANGES
 
+0.8.2	-	Corrected stupid bugs and typos
+
 0.8.1	-	Adjusted '-foreground' bug;
 			Added jumptToMatchingChar method;
 			Made all bind subs available as public methods;
