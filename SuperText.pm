@@ -1,8 +1,14 @@
 ##
 #
 # $Author: alex $
-# $Revision: 1.31 $
+# $Revision: 1.33 $
 # $Log: SuperText.pm,v $
+# Revision 1.33  1999/07/11 09:43:51  alex
+# Fixed "\" matching char bug
+#
+# Revision 1.32  1999/07/11 09:40:01  alex
+# Fixed Win32 BackSpace bug thanks to Jim Turner
+#
 # Revision 1.31  1999/03/07 23:04:13  alex
 # Fixed Tk 800 core dump
 #
@@ -89,7 +95,7 @@ use vars qw($VERSION @ISA @EXPORT);
 	leftTab copy cut paste inlinePaste undo redo destroy keyPress menuSelect noOP
 );
 
-$VERSION = '0.9.2';
+$VERSION = '0.9.3';
 @ISA = qw(Tk::Derived Tk::Text Exporter);
 
 use base qw(Tk::Text);
@@ -163,7 +169,8 @@ sub DefaultEvents {
 		'AutoIndentEnter'			=>	['<Control-Return>'],
 		'NoAutoIndentEnter'		=>	['<Shift-Return>'],
 		'Del'						=>	['<Delete>'],
-		'BackSpace'				=>	['<BackSpace>'],
+#-1999/07/11 alexiob@iname.com - Fixed win32 BackSpace bug thanks to Jim Turner
+#		'BackSpace'				=>	['<BackSpace>'],
 		'DeleteToWordStart'		=>	['<Shift-BackSpace>'],
 		'DeleteToWordEnd'			=>	['<Shift-Delete>'],
 		'DeleteToLineStart'		=>	['<Alt-BackSpace>'],
@@ -500,7 +507,9 @@ sub RemoveTextBinds
 	my (@binds) = $w->bind($class);
 	
 	foreach $b (@binds) {
-		$w->bind($class,$b,"");
+#=1999/07/11 alexiob@iname.com - Fixed win32 BackSpace bug thanks to Jim Turner
+#		$w->bind($class,$b,"");
+		$w->bind($class,$b,"") unless ($b =~ /Key-BackSpace/);
 	}	
 }
 
@@ -514,6 +523,8 @@ sub bindDefault
 		$w->eventAdd("<<$e>>",@{$$events{$e}});
 		$w->bind($w,"<<$e>>",lcfirst($e));
 	}
+#+1999/07/11 alexiob@iname.com - Fixed win32 BackSpace bug thanks to Jim Turner
+	$w->bind("<Key-BackSpace>", sub {Tk->break;});
 }
 
 # delete all event binds,specified event bind
@@ -1562,7 +1573,7 @@ sub _FindMatchingChar
 	my $match;
 
 	if($dir == 1) {	# forward search
-		$match="[$mc|$sc]+";
+		$match="[\\$mc|\\$sc]+";
 		for($p=$spos;$w->compare($p,'<',$elimit);$p=$w->index("$p + 1c")) {
 			$p=$w->SUPER::search('-forwards','-regex','--',$match,$p,$elimit);
 			if(!defined $p) {return undef;}
@@ -1578,7 +1589,7 @@ sub _FindMatchingChar
 			Tk::DoOneEvent(Tk::DONT_WAIT);
 		}
 	} else {	# backward search
-		$match="[$sc|$mc]+";
+		$match="[\\$sc|\\$mc]+";
 		for($p=$spos;$w->compare($p,'>=',$slimit);) {
 			$p=$w->SUPER::search('-backwards','-regex','--',$match,$p,$slimit);
 			if(!defined $p) {return undef;}
