@@ -1,25 +1,4 @@
-#!/usr/bin/perl
-##
-#
-# $Author: alex $
-# $Revision: 1.4 $
-# $Log: SuperText.pm,v $
-# Revision 1.4  1999/02/05 13:54:29  alex
-# catch some errors on undo/redo pop
-#
-# Revision 1.3  1999/02/05 13:32:44  alex
-# Fixed undo/redo blocks
-#
-# Revision 1.2  1999/02/04 11:25:46  alex
-# First stable version
-#
-# Revision 1.1  1999/01/24 11:09:31  alex
-# Initial revision
-#
-##
-
 package Tk::Text::SuperText;
-#package SuperText;
 
 use AutoLoader;
 require Tk::Text;
@@ -29,7 +8,7 @@ use Carp;
 use strict;
 use vars qw($VERSION @ISA);
 
-$VERSION = '0.8';
+$VERSION = '0.8.1';
 @ISA = qw(Tk::Derived Tk::Text);
 
 use base qw(Tk::Text);
@@ -37,17 +16,6 @@ use base qw(Tk::Text);
 import Tk qw(Ev);
 
 Construct Tk::Widget 'SuperText';
-
-# remove default Tk::Text key binds
-sub RemoveTextBinds
-{
-	my ($class,$w) = @_;
-	my (@binds) = $w->bind($class);
-	
-	foreach $b (@binds) {
-		$w->bind($class,$b,"");
-	}	
-}
 
 # returns an hash with the default events and key binds
 sub DefaultEvents {
@@ -111,11 +79,11 @@ sub DefaultEvents {
 		'SelectionShiftRight'		=>	['<Control-period>'],
 		'SelectionShiftRightTab'	=>	['<Control-Alt-period>'],
 		
-		'Insert'					=>	['<Insert>'],
-		'Return'					=>	['<Return>'],
-		'AutoIndentReturn'			=>	['<Control-Return>'],
-		'NoAutoindentReturn'		=>	['<Shift-Return>'],
-		'Delete'					=>	['<Delete>'],
+		'Ins'						=>	['<Insert>'],
+		'Enter'					=>	['<Return>'],
+		'AutoIndentEnter'			=>	['<Control-Return>'],
+		'NoAutoIndentEnter'		=>	['<Shift-Return>'],
+		'Del'						=>	['<Delete>'],
 		'BackSpace'				=>	['<BackSpace>'],
 		'DeleteToWordStart'		=>	['<Shift-BackSpace>'],
 		'DeleteToWordEnd'			=>	['<Shift-Delete>'],
@@ -130,7 +98,9 @@ sub DefaultEvents {
 		'FocusPrev'				=>	['<Shift-Control-Tab>'],
 		
 		'FlashMatchingChar'		=>	['<Control-b>'],
+		'RemoveMatch'				=>	['<Control-B>'],
 		'FindMatchingChar'			=>	['<Control-j>'],
+		'JumpToMatchingChar'		=>	['<Control-J>'],
 		
 		'Escape'					=>	['<Escape>'],
 		'Tab' 						=>	['<Tab>'],
@@ -177,10 +147,12 @@ sub Populate
 		'-undodepth'	 	=> ['PASSIVE','undoDepth','UndoDepth',undef],
 		'-redodepth' 		=> ['PASSIVE','redoDepth','RedoDepth',undef],
 		'-showmatching' 	=> ['PASSIVE','showMatching','ShowMatching',1],
+		'-matchhighlighttime' 	=> ['PASSIVE','matchHighlightTime','MatchHighlightTime',1400],
 		'-matchforeground'	=> ['METHOD','matchForeground','MatchForeground','white'],
 		'-matchbackground'	=> ['METHOD','matchBackground','MatchBackground','blue'],
 		'-matchingcouples'	=> ['METHOD','matchingCouples','MatchingCouples',"//[]{}()<>\\\\''``\"\""],
-		'-insertmode'		=> ['METHOD','insertMode','InsertMode','insert']
+		'-insertmode'		=> ['METHOD','insertMode','InsertMode','insert'],
+		'-foreground'		=> ['SELF','foreground','Foreground',$w->cget('-foreground')],
 	);
 	# set default key binds and events
 	$w->bindDefault;
@@ -273,11 +245,12 @@ sub insert
 				my $sel = Tk::catch {$w->tag('nextrange','match','1.0','end');};
 				if(defined $sel) {$w->tag('remove','match','match.first');}
 				$w->tag('add','match',$i,$w->index("$i + 1c"));
-				$w->after(1000,[\&removeMatch,$w,$i]);
+				my $t=$w->cget('-matchhighlighttime');
+				if($t != 0) {$w->after($t,[\&removeMatch,$w,$i]);}
 			}
 		}
 	}
-	
+
 	# combine 'trivial ' inserts into clumps
 	if((length($str) == 1) && ($str ne "\n")) {
 		my $t = $w->_TopUndo;
@@ -303,6 +276,10 @@ sub delete
 	$w->SUPER::delete($s,@_);
 	$w->_AddUndo('insert',$s,$str);
 }
+
+1;
+
+__END__
 
 # clipboard methods that must be overriden for rectangular selections
 
@@ -389,7 +366,8 @@ sub SetCursor
 				my $sel = Tk::catch {$w->tag('nextrange','match','1.0','end');};
 				if(defined $sel) {$w->tag('remove','match','match.first');}
 				$w->tag('add','match',$i,$w->index("$i + 1c"));
-				$w->after(1000,[\&removeMatch,$w,$i]);
+				my $t=$w->cget('-matchhighlighttime');
+				if($t != 0) {$w->after($t,[\&removeMatch,$w,$i]);}
 			}
 		}
 	}
@@ -418,14 +396,23 @@ sub Button1
 				my $sel = Tk::catch {$w->tag('nextrange','match','1.0','end');};
 				if(defined $sel) {$w->tag('remove','match','match.first');}
 				$w->tag('add','match',$i,$w->index("$i + 1c"));
-				$w->after(1000,[\&removeMatch,$w,$i]);
+				my $t=$w->cget('-matchhighlighttime');
+				if($t != 0) {$w->after($t,[\&removeMatch,$w,$i]);}
 			}
 		}
 	}
 }	
-1;
 
-#__END__
+# remove default Tk::Text key binds
+sub RemoveTextBinds
+{
+	my ($class,$w) = @_;
+	my (@binds) = $w->bind($class);
+	
+	foreach $b (@binds) {
+		$w->bind($class,$b,"");
+	}	
+}
 
 # bind default keys with default events 
 sub bindDefault
@@ -435,7 +422,7 @@ sub bindDefault
 	
 	foreach my $e (keys %events) {
 		$w->eventAdd("<<$e>>",@{$events{$e}});
-		$w->bind($w,"<<$e>>","_$e");
+		$w->bind($w,"<<$e>>",lcfirst($e));
 	}
 }
 
@@ -482,7 +469,7 @@ sub resetUndo
 }
 
 # undo last operation
-sub _Undo
+sub undo
 {
 	my ($w) = @_;
 	my $s;
@@ -533,7 +520,7 @@ sub _Undo
 }
 
 # redo last undone operation
-sub _Redo
+sub redo
 {
 	my ($w) = @_;
 	my $block = 0;
@@ -693,7 +680,7 @@ sub SelectTo
 	} 
 }
 
-sub _MouseSetInsert
+sub mouseSetInsert
 {	
 	my $w = shift;
 	my $ev = $w->XEvent;
@@ -702,7 +689,7 @@ sub _MouseSetInsert
 	$w->Button1($ev->x,$ev->y);
 }
 
-sub _MouseSelect
+sub mouseSelect
 {
 	my $w = shift;
 	my $ev = $w->XEvent;
@@ -713,7 +700,7 @@ sub _MouseSelect
 	$w->SelectTo($ev->xy);
 }
 
-sub _MouseSelectWord
+sub mouseSelectWord
 {
 	my $w = shift;
 	my $ev = $w->XEvent;
@@ -723,7 +710,7 @@ sub _MouseSelectWord
 	Tk::catch {$w->markSet('insert',"sel.first")};
 }
 
-sub _MouseSelectLine
+sub mouseSelectLine
 {
 	my $w = shift;
 	my $ev = $w->XEvent;
@@ -733,7 +720,7 @@ sub _MouseSelectLine
 	Tk::catch {$w->markSet('insert',"sel.first")};
 }
 
-sub _MouseSelectAdd
+sub mouseSelectAdd
 {
 	my $w = shift;
 	my $ev = $w->XEvent;
@@ -743,7 +730,7 @@ sub _MouseSelectAdd
 	$w->SelectTo($ev->xy,'char');
 }
 
-sub _MouseSelectAddWord
+sub mouseSelectAddWord
 {
 	my $w = shift;
 	my $ev = $w->XEvent;
@@ -752,7 +739,7 @@ sub _MouseSelectAddWord
 	$w->SelectTo($ev->xy,'word');
 }
 
-sub _MouseSelectAddLine
+sub mouseSelectAddLine
 {
 	my $w = shift;
 	my $ev = $w->XEvent;
@@ -761,7 +748,7 @@ sub _MouseSelectAddLine
 	$w->SelectTo($ev->xy,'line');
 }
 
-sub _MouseSelectAutoScan
+sub mouseSelectAutoScan
 {
 	my $w = shift;
 	my $ev = $w->XEvent;
@@ -772,14 +759,14 @@ sub _MouseSelectAutoScan
 	$w->AutoScan;
 }
 
-sub _MouseSelectAutoScanStop
+sub mouseSelectAutoScanStop
 {
 	my $w = shift;
 
 	$w->CancelRepeat;
 }
 
-sub _MouseMoveInsert
+sub mouseMoveInsert
 {
 	my $w = shift;
 	my $ev = $w->XEvent;
@@ -788,7 +775,7 @@ sub _MouseMoveInsert
 	$w->markSet('insert',$ev->xy);
 }
 
-sub _MouseRectSelection
+sub mouseRectSelection
 {
 	my $w = shift;
 	my $ev = $w->XEvent;
@@ -799,7 +786,7 @@ sub _MouseRectSelection
 	$w->SelectTo($ev->xy);
 }
 
-sub _MouseMovePageTo
+sub mouseMovePageTo
 {
 	my $w = shift;
 	my $ev = $w->XEvent;
@@ -807,7 +794,7 @@ sub _MouseMovePageTo
 	$w->Button2($ev->x,$ev->y);
 }
 
-sub _MouseMovePage
+sub mouseMovePage
 {
 	my $w = shift;
 	my $ev = $w->XEvent;
@@ -815,7 +802,7 @@ sub _MouseMovePage
 	$w->Motion2($ev->x,$ev->y);
 }
     
-sub _MousePasteSelection
+sub mousePasteSelection
 {
 	my $w = shift;
 	my $ev = $w->XEvent;
@@ -874,7 +861,7 @@ sub KeySelect
 	$w->idletasks;
 }
 
-sub _MoveLeft
+sub moveLeft
 {
 	my $w = shift;
 
@@ -882,7 +869,7 @@ sub _MoveLeft
 	$w->SetCursor($w->index("insert - 1c"));
 }
 
-sub _SelectLeft
+sub selectLeft
 {
 	my $w = shift;
 
@@ -891,7 +878,7 @@ sub _SelectLeft
 	$w->KeySelect($w->index("insert - 1c"));
 }
 
-sub _SelectRectLeft
+sub selectRectLeft
 {
 	my $w = shift;
 
@@ -900,7 +887,7 @@ sub _SelectRectLeft
 	$w->KeySelect($w->index("insert - 1c"));
 }
 
-sub _MoveLeftWord
+sub moveLeftWord
 {
 	my $w = shift;
 
@@ -908,7 +895,7 @@ sub _MoveLeftWord
 	$w->SetCursor($w->index("insert - 1c wordstart"));
 }
 
-sub _SelectLeftWord
+sub selectLeftWord
 {
 	my $w = shift;
 
@@ -917,7 +904,7 @@ sub _SelectLeftWord
 	$w->KeySelect($w->index("insert - 1c wordstart"));
 }
 
-sub _MoveRight
+sub moveRight
 {
 	my $w = shift;
 
@@ -925,7 +912,7 @@ sub _MoveRight
 	$w->SetCursor($w->index("insert + 1c"));
 }
 
-sub _SelectRight
+sub selectRight
 {
 	my $w = shift;
 
@@ -934,7 +921,7 @@ sub _SelectRight
 	$w->KeySelect($w->index("insert + 1c"));
 }
 
-sub _SelectRectRight
+sub selectRectRight
 {
 	my $w = shift;
 
@@ -943,7 +930,7 @@ sub _SelectRectRight
 	$w->KeySelect($w->index("insert + 1c"));
 }
 
-sub _MoveRightWord
+sub moveRightWord
 {
 	my $w = shift;
 
@@ -951,7 +938,7 @@ sub _MoveRightWord
 	$w->SetCursor($w->index("insert + 1c wordend"));
 }
 
-sub _SelectRightWord
+sub selectRightWord
 {
 	my $w = shift;
 
@@ -960,7 +947,7 @@ sub _SelectRightWord
 	$w->KeySelect($w->index("insert wordend"));
 }
 
-sub _MoveUp
+sub moveUp
 {
 	my $w = shift;
 
@@ -968,7 +955,7 @@ sub _MoveUp
 	$w->SetCursor($w->UpDownLine(-1));
 }
 
-sub _SelectUp
+sub selectUp
 {
 	my $w = shift;
 
@@ -977,7 +964,7 @@ sub _SelectUp
 	$w->KeySelect($w->UpDownLine(-1));
 }
 
-sub _SelectRectUp
+sub selectRectUp
 {
 	my $w = shift;
 
@@ -986,7 +973,7 @@ sub _SelectRectUp
 	$w->KeySelect($w->UpDownLine(-1));
 }
 
-sub _MoveUpParagraph
+sub moveUpParagraph
 {
 	my $w = shift;
 
@@ -994,7 +981,7 @@ sub _MoveUpParagraph
 	$w->SetCursor($w->PrevPara('insert'));
 }
 
-sub _SelectUpParagraph
+sub selectUpParagraph
 {
 	my $w = shift;
 
@@ -1003,7 +990,7 @@ sub _SelectUpParagraph
 	$w->KeySelect($w->PrevPara('insert'));
 }
 
-sub _MoveDown
+sub moveDown
 {
 	my $w = shift;
 
@@ -1011,7 +998,7 @@ sub _MoveDown
 	$w->SetCursor($w->UpDownLine(1));
 }
 
-sub _SelectDown
+sub selectDown
 {
 	my $w = shift;
 
@@ -1020,7 +1007,7 @@ sub _SelectDown
 	$w->KeySelect($w->UpDownLine(1));
 }
 
-sub _SelectRectDown
+sub selectRectDown
 {
 	my $w = shift;
 
@@ -1029,7 +1016,7 @@ sub _SelectRectDown
 	$w->KeySelect($w->UpDownLine(1));
 }
 
-sub _MoveDownParagraph
+sub moveDownParagraph
 {
 	my $w = shift;
 
@@ -1037,7 +1024,7 @@ sub _MoveDownParagraph
 	$w->SetCursor($w->NextPara('insert'));
 }
 
-sub _SelectDownParagraph
+sub selectDownParagraph
 {
 	my $w = shift;
 
@@ -1046,7 +1033,7 @@ sub _SelectDownParagraph
 	$w->KeySelect($w->NextPara('insert'));
 }
 
-sub _MoveLineStart
+sub moveLineStart
 {
 	my $w = shift;
 	
@@ -1066,7 +1053,7 @@ sub _MoveLineStart
 	}
 }
 
-sub _SelectToLineStart
+sub selectToLineStart
 {
 	my $w = shift;
 
@@ -1075,7 +1062,7 @@ sub _SelectToLineStart
 	$w->KeySelect('insert linestart');
 }
 
-sub _MoveTextStart
+sub moveTextStart
 {
 	my $w = shift;
 
@@ -1083,7 +1070,7 @@ sub _MoveTextStart
 	$w->SetCursor('1.0');
 }
 
-sub _SelectToTextStart
+sub selectToTextStart
 {
 	my $w = shift;
 
@@ -1092,7 +1079,7 @@ sub _SelectToTextStart
 	$w->KeySelect('1.0');
 }
 
-sub _MoveLineEnd
+sub moveLineEnd
 {
 	my $w = shift;
 
@@ -1100,7 +1087,7 @@ sub _MoveLineEnd
 	$w->SetCursor('insert lineend');
 }
 
-sub _SelectToLineEnd
+sub selectToLineEnd
 {
 	my $w = shift;
 
@@ -1109,7 +1096,7 @@ sub _SelectToLineEnd
 	$w->KeySelect('insert lineend');
 }
 
-sub _MoveTextEnd
+sub moveTextEnd
 {
 	my $w = shift;
 
@@ -1117,7 +1104,7 @@ sub _MoveTextEnd
 	$w->SetCursor('end - 1c');
 }
 
-sub _SelectToTextEnd
+sub selectToTextEnd
 {
 	my $w = shift;
 
@@ -1142,7 +1129,7 @@ sub ScrollPages
 	else {return $w->SUPER::ScrollPages($count);}
 }
 	
-sub _MovePageUp
+sub movePageUp
 {
 	my $w = shift;
 
@@ -1150,7 +1137,7 @@ sub _MovePageUp
 	$w->SetCursor($w->ScrollPages(-1));
 }
 
-sub _SelectToPageUp
+sub selectToPageUp
 {
 	my $w = shift;
 
@@ -1159,7 +1146,7 @@ sub _SelectToPageUp
 	$w->KeySelect($w->ScrollPages(-1));
 }
 
-sub _MovePageLeft
+sub movePageLeft
 {
 	my $w = shift;
 
@@ -1167,7 +1154,7 @@ sub _MovePageLeft
 	$w->xview('scroll',-1,'page');
 }
 
-sub _MovePageDown
+sub movePageDown
 {
 	my $w = shift;
 
@@ -1175,7 +1162,7 @@ sub _MovePageDown
 	$w->SetCursor($w->ScrollPages(1));
 }
 
-sub _SelectToPageDown
+sub selectToPageDown
 {
 	my $w = shift;
 
@@ -1184,7 +1171,7 @@ sub _SelectToPageDown
 	$w->KeySelect($w->ScrollPages(1));
 }
 
-sub _MovePageRight
+sub movePageRight
 {
 	my $w = shift;
 
@@ -1192,7 +1179,7 @@ sub _MovePageRight
 	$w->xview('scroll',1,'page');
 }
 
-sub _SetSelectionMark
+sub setSelectionMark
 {
 	my $w = shift;
 
@@ -1200,7 +1187,7 @@ sub _SetSelectionMark
 	$w->markSet('anchor','insert');
 }
 
-sub _SelectToMark
+sub selectToMark
 {
 	my $w = shift;
 
@@ -1209,7 +1196,7 @@ sub _SelectToMark
 	$w->SelectTo('insert','char');
 }
 
-sub _SelectAll
+sub selectAll
 {
 	my $w = shift;
 
@@ -1218,7 +1205,7 @@ sub _SelectAll
 	$w->tag('add','sel','1.0','end');
 }
 
-sub _SelectionShiftLeft
+sub selectionShiftLeft
 {
 	my $w = shift;
 	
@@ -1226,7 +1213,7 @@ sub _SelectionShiftLeft
 	$w->_SelectionShift(" ","left");
 }
 
-sub _SelectionShiftLeftTab
+sub selectionShiftLeftTab
 {
 	my $w = shift;
 	
@@ -1234,7 +1221,7 @@ sub _SelectionShiftLeftTab
 	$w->_SelectionShift("\t","left");
 }
 
-sub _SelectionShiftRight
+sub selectionShiftRight
 {
 	my $w = shift;
 	
@@ -1242,7 +1229,7 @@ sub _SelectionShiftRight
 	$w->_SelectionShift(" ","right");
 }
 
-sub _SelectionShiftRightTab
+sub selectionShiftRightTab
 {
 	my $w = shift;
 	
@@ -1271,18 +1258,18 @@ sub _SelectionShift
 		if($scol != 0) {$scol--;}
 		$w->delete($w->index("$sline.$scol"));
 		for(my $i=$sline+1;$i <= $eline;$i++) {
-			$w->delete($w->index("$i.$col"));
+			$w->delete($w->index("$i.$scol"));
 		}
 	} elsif($dir eq "right") {
 		$w->insert($w->index("$sline.$scol"),$type);
 		for(my $i=$sline+1;$i <= $eline;$i++) {
-			$w->insert($w->index("$i.$col"),$type);
+			$w->insert($w->index("$i.$scol"),$type);
 		}
 	}
 	$w->_EndUndoBlock;
 }
 
-sub _Insert
+sub ins
 {
 	my $w = shift;
 
@@ -1291,25 +1278,29 @@ sub _Insert
 	elsif($w->{INSERTMODE} eq 'overwrite') {$w->{INSERTMODE}='insert';}
 }
 
-sub _Return
+sub enter
 {
 	my $w = shift;
 
+	$w->_BeginUndoBlock;
 	Tk::catch {$w->Insert("\n")};
 	if($w->cget('-indentmode') eq 'auto') {
 		$w->_AutoIndent;
 	}
+	$w->_EndUndoBlock;
 }
 
-sub _AutoIndentReturn
+sub autoIndentEnter
 {
 	my $w = shift;
 
+	$w->_BeginUndoBlock;
 	Tk::catch {$w->Insert("\n")};
 	$w->_AutoIndent;
+	$w->_EndUndoBlock;
 }
 
-sub _NoAutoindentReturn
+sub noAutoIndentEnter
 {
 	my $w = shift;
 
@@ -1332,7 +1323,7 @@ sub _AutoIndent
 	}
 }
 
-sub _Delete
+sub del
 {
 	my $w = shift;
 
@@ -1353,7 +1344,7 @@ sub Delete
 	}
 }
 
-sub _BackSpace
+sub backSpace
 {
 	my $w = shift;
 
@@ -1374,7 +1365,7 @@ sub Backspace
 	}	
 }
 
-sub _DeleteToWordStart
+sub deleteToWordStart
 {
 	my $w = shift;
 	
@@ -1385,7 +1376,7 @@ sub _DeleteToWordStart
 	}
 }
 
-sub _DeleteToWordEnd
+sub deleteToWordEnd
 {
 	my $w = shift;
 	
@@ -1396,7 +1387,7 @@ sub _DeleteToWordEnd
 	}
 }
 
-sub _DeleteToLineStart
+sub deleteToLineStart
 {
 	my $w = shift;
 
@@ -1408,7 +1399,7 @@ sub _DeleteToLineStart
 	}
 }
 
-sub _DeleteToLineEnd
+sub deleteToLineEnd
 {
 	my $w = shift;
 	
@@ -1419,14 +1410,14 @@ sub _DeleteToLineEnd
 	}
 }
 
-sub _DeleteWord
+sub deleteWord
 {
 	my $w = shift;
 
 	$w->delete('insert wordstart','insert wordend');
 }
 
-sub _DeleteLine
+sub deleteLine
 {
 	my $w = shift;
 
@@ -1434,7 +1425,7 @@ sub _DeleteLine
 	$w->markSet('insert','insert linestart');
 }
 
-sub _InsertControlCode
+sub insertControlCode
 {
 	my $w = shift;
 	
@@ -1442,14 +1433,14 @@ sub _InsertControlCode
 	$w->{ASCIICODE} = 1;
 }
 
-sub _FocusNext
+sub focusNext
 {
 	my $w = shift;
 
 	$w->focusNext;
 }
 
-sub _FocusPrev
+sub focusPrev
 {
 	my $w = shift;
 
@@ -1457,7 +1448,7 @@ sub _FocusPrev
 }
 
 # find a matching char for the given one
-sub findMetchingChar
+sub _FindMetchingChar
 {
 	my ($w,$sc,$pos,$slimit,$elimit) = @_;
 	my $mc = ${$w->{MATCHINGCOUPLES}->{$sc}}[0];	# char to search
@@ -1496,31 +1487,40 @@ sub findMetchingChar
 	return undef;
 }
 
-sub _FlashMatchingChar
+sub flashMatchingChar
 {
 	my $w = shift;
 	my $s = $w->index('insert');
 	my $str = $w->get('insert');
 	
 	if(exists %{$w->{MATCHINGCOUPLES}}->{$str}) {
-		my $i=$w->findMetchingChar($str,$s,"1.0","end");
+		my $i=$w->_FindMetchingChar($str,$s,"1.0","end");
 		if(defined $i) {
 			my $sel = Tk::catch {$w->tag('nextrange','match','1.0','end');};
 			if(defined $sel) {$w->tag('remove','match','match.first');}
 			$w->tag('add','match',$i,$w->index("$i + 1c"));
-			$w->after(1500,[\&removeMatch,$w,$i]);
+			my $t=$w->cget('-matchhighlighttime');
+			if($t != 0) {$w->after($t,[\&removeMatch,$w,$i]);}
 			return $i;
 		}
 	}
 	return undef;
 }
 
-sub _FindMatchingChar
+sub findMatchingChar
 {
 	my $w = shift;
-	my $i = $w->_FlashMatchingChar;
+	my $i = $w->flashMatchingChar;
 	
 	if(defined $i) {$w->see($i);}
+}
+
+sub jumpToMatchingChar
+{
+	my $w = shift;
+	my $i = $w->flashMatchingChar;
+	
+	if(defined $i) {$w->SetCursor($i);}
 }
 
 # used for removing match tag after some time
@@ -1528,17 +1528,18 @@ sub removeMatch
 {
 	my ($w,$i) = @_;
 	
-	$w->tag('remove','match',$i);
+	if(defined $i) {$w->tag('remove','match',$i);}
+	else {$w->tag('remove','match','1.0','end');}
 }
 
 
-sub _Escape
+sub escape
 {
 	my $w = shift;
 	$w->tag('remove','sel','1.0','end');
 }
 
-sub _Tab
+sub tab
 {
 	my $w = shift;
 
@@ -1547,32 +1548,32 @@ sub _Tab
 	$w->break;
 }
 
-sub _LeftTab
+sub leftTab
 {
 }
 
-sub _Copy
+sub copy
 {
 	my $w = shift;
 
 	$w->clipboardCopy;
 }
 
-sub _Cut
+sub cut
 {
 	my $w = shift;
 
 	$w->clipboardCut;
 }
 
-sub _Paste
+sub paste
 {
 	my $w = shift;
 
 	$w->clipboardPaste;
 }
 
-sub _InlinePaste
+sub inlinePaste
 {
 	my $w = shift;
 	my ($l,$c) = split('\.',$w->index('insert'));
@@ -1591,14 +1592,14 @@ sub _InlinePaste
 	$w->_EndUndoBlock;
 }
 
-sub _Destroy
+sub destroy
 {
 	my $w = shift;
 
 	$w->Destroy;
 }
 
-sub _KeyPress
+sub keyPress
 {
 	my $w = shift;
 	my $ev = $w->XEvent;
@@ -1606,7 +1607,7 @@ sub _KeyPress
 	$w->Insert($ev->A);
 }
 
-sub _MenuSelect
+sub menuSelect
 {
 	my $w = shift;
 	my $ev = $w->XEvent;
@@ -1614,7 +1615,7 @@ sub _MenuSelect
 	$w->TraverseToMenu($ev->K);
 }
 
-sub _NoOP
+sub noOP
 {
 	my $w = shift;
 	$w->NoOp;
@@ -1692,6 +1693,14 @@ out and forgotten;B<0> stops the redo feature,B<undef> sets unlimited depth.
 
 With a value of B<1> activates the matching parentheses feature.B<0> deactivates it.
 
+=item Name:	B<matchHighlightTime>
+
+=item Class:	B<MatchHighlightTime>
+
+=item Switch:	B<-matchhighlighttime>
+
+Sets the number of milliseconds the match highlight stays visible; with a value of B<0> the highlight stays on till next match.
+
 =item Name:	B<matchForeground>
 
 =item Class:	B<MatchForeground>
@@ -1700,9 +1709,9 @@ With a value of B<1> activates the matching parentheses feature.B<0> deactivates
 
 Set the foreground color for the char hilighted by the match-parentheses command.
 
-=item Name:	B<showMatching>
+=item Name:	B<matchBackground>
 
-=item Class:	B<ShowMatching>
+=item Class:	B<MatchBackground>
 
 =item Switch:	B<-matchbackground>
 
@@ -1834,7 +1843,10 @@ Example: I<$w>-E<gt>B<eventAdd>(I<'Tk::Text::SuperText','E<lt>E<lt>SelectAllE<gt
 To set default events bindigs use this methos:
 I<$w>-E<gt>B<bindDefault>;
 
-=item * Key bindings are sometimes redefined (not really a feature :).
+=item * Default key bindings are redefined (not really a feature :).
+
+Every virtual event has an associated public method with the same name of the event but with the firts
+char in lower case (eg: B<E<lt>E<lt>MouseSelectE<gt>E<gt>> event has a corresponding  I<$super_text>-E<gt>B<mouseSelect> method).
 
 Virtual Event/Command		Default Key Binding
 
@@ -1896,11 +1908,11 @@ B<SelectionShiftLeftTab>	B<E<lt>Control-Alt-commaE<gt>>
 B<SelectionShiftRight>		B<E<lt>Control-periodE<gt>>
 B<SelectionShiftRightTab>	B<E<lt>Control-Alt-periodE<gt>>
 
-B<Insert>				B<E<lt>InsertE<gt>>
-B<Return>				B<E<lt>ReturnE<gt>>
-B<AutoIndentReturn>		B<E<lt>Control-ReturnE<gt>>
-B<NoAutoindentReturn>		B<E<lt>Shift-ReturnE<gt>>
-B<Delete>				B<E<lt>DeleteE<gt>>
+B<Ins>					B<E<lt>InsertE<gt>>
+B<Enter>				B<E<lt>ReturnE<gt>>
+B<AutoIndentEnter>		B<E<lt>Control-ReturnE<gt>>
+B<NoAutoindentEnter>		B<E<lt>Shift-ReturnE<gt>>
+B<Del>					B<E<lt>DeleteE<gt>>
 B<BackSpace>				B<E<lt>BackSpaceE<gt>>
 B<DeleteToWordStart>		B<E<lt>Shift-BackSpaceE<gt>>
 B<DeleteToWordEnd>		B<E<lt>Shift-DeleteE<gt>>
@@ -1915,7 +1927,9 @@ B<FocusNext>				B<E<lt>Control-TabE<gt>>
 B<FocusPrev>				B<E<lt>Shift-Control-TabE<gt>>
 
 B<FlashMatchingChar>		B<E<lt>Control-bE<gt>>
+B<RemoveMatch>			B<E<lt>Control-BE<gt>>
 B<FindMatchingChar>		B<E<lt>Control-jE<gt>>
+B<JumpToMatchingChar>		B<E<lt>Control-JE<gt>>
 
 B<Escape>				B<E<lt>EscapeE<gt>>
 
@@ -1938,6 +1952,178 @@ B<Redo>					B<E<lt>Control-ZE<gt>>
 B<Destroy>				B<E<lt>DestroyE<gt>>
 
 B<MenuSelect>			B<E<lt>Alt-KeyPressE<gt>>
+
+=item * Public methods.
+
+I<$widget>-E<gt>B<mouseSetInsert>
+
+I<$widget>-E<gt>B<museSelect>			
+
+I<$widget>-E<gt>B<mouseSelectWord>		
+
+I<$widget>-E<gt>B<mouseSelectLine>		
+
+I<$widget>-E<gt>B<mouseSelectAdd>	
+
+I<$widget>-E<gt>B<mouseSelectAddWord>	
+
+I<$widget>-E<gt>B<mouseSelectAddLine>
+
+I<$widget>-E<gt>B<mouseSelectAutoScan>
+
+I<$widget>-E<gt>B<mouseSelectAutoScanStop>
+
+I<$widget>-E<gt>B<mouseMoveInsert>
+
+I<$widget>-E<gt>B<mouseRectSelection>	
+
+I<$widget>-E<gt>B<mouseMovePageTo>
+
+I<$widget>-E<gt>B<mouseMovePage>
+
+I<$widget>-E<gt>B<mousePasteSelection>	
+
+I<$widget>-E<gt>B<moveLeft>
+
+I<$widget>-E<gt>B<selectLeft>	
+
+I<$widget>-E<gt>B<selectRectLeft>		
+
+I<$widget>-E<gt>B<moveLeftWord>	
+
+I<$widget>-E<gt>B<selectLeftWord>
+
+I<$widget>-E<gt>B<moveRight>
+
+I<$widget>-E<gt>B<selectRight>
+
+I<$widget>-E<gt>B<selectRectRight>	
+
+I<$widget>-E<gt>B<moveRightWord>
+
+I<$widget>-E<gt>B<selectRightWord>
+
+I<$widget>-E<gt>B<moveUp>	
+
+I<$widget>-E<gt>B<selectUp>			
+
+I<$widget>-E<gt>B<selectRectUp>			
+
+I<$widget>-E<gt>B<moveUpParagraph>
+
+I<$widget>-E<gt>B<selectUpParagraph>
+
+I<$widget>-E<gt>B<moveDown>
+
+I<$widget>-E<gt>B<selectDown>		
+
+I<$widget>-E<gt>B<selectRectDown>		
+
+I<$widget>-E<gt>B<moveDownParagraph>
+
+I<$widget>-E<gt>B<selectDownParagraph>
+
+I<$widget>-E<gt>B<moveLineStart>
+
+I<$widget>-E<gt>B<selectToLineStart>	
+
+I<$widget>-E<gt>B<moveTextStart>	
+
+I<$widget>-E<gt>B<selectToTextStart>	
+
+I<$widget>-E<gt>B<moveLineEnd>	
+
+I<$widget>-E<gt>B<selectToLineEnd>	
+
+I<$widget>-E<gt>B<moveTextEnd>	
+
+I<$widget>-E<gt>B<selectToTextEnd>	
+
+I<$widget>-E<gt>B<movePageUp>	
+
+I<$widget>-E<gt>B<selectToPageUp>		
+
+I<$widget>-E<gt>B<movePageLeft>	
+
+I<$widget>-E<gt>B<movePageDown>
+
+I<$widget>-E<gt>B<selectToPageDown>	
+
+I<$widget>-E<gt>B<movePageRight>	
+
+I<$widget>-E<gt>B<setSelectionMark>	
+
+I<$widget>-E<gt>B<selectToMark>	
+
+I<$widget>-E<gt>B<selectAll>
+
+I<$widget>-E<gt>B<selectionShiftLeft>
+
+I<$widget>-E<gt>B<selectionShiftLeftTab>
+
+I<$widget>-E<gt>B<selectionShiftRight>
+
+I<$widget>-E<gt>B<selectionShiftRightTab>	
+
+I<$widget>-E<gt>B<ins>
+
+I<$widget>-E<gt>B<enter>			
+
+I<$widget>-E<gt>B<autoIndentEnter>
+
+I<$widget>-E<gt> B<noAutoindentEnter>	
+
+I<$widget>-E<gt>B<del>
+
+I<$widget>-E<gt>B<backSpace>
+
+I<$widget>-E<gt>B<deleteToWordStart>
+
+I<$widget>-E<gt>B<deleteToWordEnd>	
+
+I<$widget>-E<gt>B<deleteToLineStart>	
+
+I<$widget>-E<gt>B<deleteToLineEnd>	
+
+I<$widget>-E<gt>B<deleteWord>	
+
+I<$widget>-E<gt>B<deleteLine>	
+
+I<$widget>-E<gt>B<insertControlCode>
+
+I<$widget>-E<gt>B<focusNext>
+
+I<$widget>-E<gt>B<focusPrev>		
+
+I<$widget>-E<gt>B<flashMatchingChar>
+
+I<$widget>-E<gt>B<removeMatch>
+
+I<$widget>-E<gt>B<findMatchingChar>		
+
+I<$widget>-E<gt>B<jumpToMatchingChar>
+
+I<$widget>-E<gt>B<escape>
+
+I<$widget>-E<gt>B<tab>
+
+I<$widget>-E<gt>B<leftTab>
+
+I<$widget>-E<gt>B<copy>
+
+I<$widget>-E<gt>B<cut>
+
+I<$widget>-E<gt>B<paste>
+
+I<$widget>-E<gt>B<inlinePaste>
+
+I<$widget>-E<gt>B<undo>
+
+I<$widget>-E<gt>B<redo>
+
+I<$widget>-E<gt>B<destroy>
+
+I<$widget>-E<gt>B<menuSelect>
 
 =head1 AUTHOR
 

@@ -7,6 +7,8 @@ DESCRIPTION
 	commands binded via virtual events.
 
 AUTHOR
+	Send comments,suggestions,flames :) to:
+	
 	Alessandro Iob <alexiob@iname.com>
 	
 COPYRIGHT
@@ -30,7 +32,11 @@ HOW TO BUILD AND INSTALL
 	
 CHANGES
 
-	This is the first public release.
+0.8.1	-	Adjusted '-foreground' bug;
+			Added jumptToMatchingChar method;
+			Made all bind subs available as public methods;
+			
+0.8	-	This is the first public release.
 	
 TODO
 

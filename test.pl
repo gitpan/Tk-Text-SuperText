@@ -1,16 +1,4 @@
 #!/usr/bin/perl
-##
-#
-# $Author: alex $
-# $Revision: 1.2 $
-# $Log: test.pl,v $
-# Revision 1.2  1999/02/04 11:25:46  alex
-# First stable version
-#
-# Revision 1.1  1999/01/24 13:40:27  alex
-# Initial revision
-#
-##
 
 # Before `make install' is performed this script should be runnable with
 # `make test'. After `make install' it should work as `perl test.pl'
@@ -39,19 +27,21 @@ print "ok 1\n";
 my $wm=MainWindow->new();
 
 my $text=$wm->Scrolled('SuperText','-scrollbars' => 'se','-wrap' => 'none',
-  '-borderwidth' => 0,'-width' => 80,'-height' => 40,'-indentmode' => 'auto');
+  '-borderwidth' => 0,'-width' => 80,'-height' => 40,'-indentmode' => 'auto',
+  '-background' => 'white','-foreground' => 'blue'
+  );
 
 $text->pack('-fill' => 'both','-expand' => 'true');
 $text->focus;
 
-$text->bind('Tk::Text::SuperText','<<PrintCouples>>',\&print_couples);
-$text->eventAdd('<<PrintCouples>>','<Control-p>','<Control-Key-1>');
+$text->bind('Tk::Text::SuperText','<<pippo>>',\&pippo);
+$text->eventAdd('<<pippo>>','<Control-p>','<Control-Key-1>');
 
 MainLoop;
 
 print "ok 2\n";
 
-sub print_couples
+sub pippo
 {
 	my $w = shift;
 	
