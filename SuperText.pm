@@ -1,9 +1,18 @@
 ##
 #
 # $Author: alex $
-# $Revision: 1.26 $
+# $Revision: 1.28 $
 # $Log: SuperText.pm,v $
+# Revision 1.28  1999/02/19 13:14:07  alex
+# Fixed backward matching char search
+#
+# Revision 1.27  1999/02/18 23:48:59  alex
+# catched cut/copy/paste methods
+#
 # Revision 1.26  1999/02/18 20:55:08  alex
+# Speedup for matching and shifting
+#
+# Revision 1.25  1999/02/18 20:53:26  alex
 # Speedup for matching and shifting
 #
 # Revision 1.24  1999/02/13 20:32:40  alex
@@ -70,7 +79,7 @@ use vars qw($VERSION @ISA @EXPORT);
 	leftTab copy cut paste inlinePaste undo redo destroy keyPress menuSelect noOP
 );
 
-$VERSION = '0.9';
+$VERSION = '0.9.1';
 @ISA = qw(Tk::Derived Tk::Text Exporter);
 
 use base qw(Tk::Text);
@@ -1540,11 +1549,12 @@ sub _FindMatchingChar
 	
 	my $dir = ${$w->{MATCHINGCOUPLES}->{$sc}}[1];	# forward or backward search
 	my $spos=($dir == 1 ? $w->index("$pos + $dir c") : $w->index($pos));
-	my $d = 1;
+	my $d=1;
 	my ($p,$c);
-	my $match="[$mc|$sc]{1}";
+	my $match;
 
 	if($dir == 1) {	# forward search
+		$match="[$mc|$sc]+";
 		for($p=$spos;$w->compare($p,'<',$elimit);$p=$w->index("$p + 1c")) {
 			$p=$w->SUPER::search('-forwards','-regex','--',$match,$p,$elimit);
 			if(!defined $p) {return undef;}
@@ -1554,12 +1564,15 @@ sub _FindMatchingChar
 				if($d == 0) {
 					return $p;
 				}
-			} elsif($c eq $sc) {$d++;}
+			} elsif($c eq $sc) {
+				$d++;
+			}
 			Tk::DoOneEvent(Tk::DONT_WAIT);
 		}
 	} else {	# backward search
-		for($p=$spos;$w->compare($p,'>=',$slimit);$p=$w->index("$p - 1c")) {
-			$p=$w->SUPER::search('-backwards','-regex','--',$match,$p);#,$slimit);
+		$match="[$sc|$mc]+";
+		for($p=$spos;$w->compare($p,'>=',$slimit);) {
+			$p=$w->SUPER::search('-backwards','-regex','--',$match,$p,$slimit);
 			if(!defined $p) {return undef;}
 			$c=$w->get($p);
 			if($c eq $mc) {
@@ -1567,7 +1580,9 @@ sub _FindMatchingChar
 				if($d == 0) {
 					return $p;
 				}
-			} elsif($c eq $sc) {$d++;}
+			} elsif($c eq $sc) {
+				$d++;
+			}
 			if($w->compare($p,'==','1.0')) {return undef;}
 			Tk::DoOneEvent(Tk::DONT_WAIT);
 		}
@@ -1635,14 +1650,14 @@ sub copy
 {
 	my $w = shift;
 
-	$w->clipboardCopy;
+	Tk::catch{$w->clipboardCopy;};
 }
 
 sub cut
 {
 	my $w = shift;
 
-	$w->clipboardCut;
+	Tk::catch{$w->clipboardCut;};
 	$w->see('insert');
 }
 
@@ -1650,7 +1665,7 @@ sub paste
 {
 	my $w = shift;
 
-	$w->clipboardPaste;
+	Tk::catch{$w->clipboardPaste;};
 	$w->see('insert');
 }
 

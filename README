@@ -32,6 +32,8 @@ HOW TO BUILD AND INSTALL
 	
 CHANGES
 
+0.9.1	-	Fixed backward matching char search bug.
+
 0.9	-	Removed all known bugs,
 			Speed up of parentheses matching and block shift.
 			Now it should be really usefull ;)
