@@ -5,7 +5,7 @@ WriteMakefile(
 	'NAME'			=>	'Tk::Text::SuperText',
 	'VERSION_FROM'	=>	'SuperText.pm', # finds $VERSION
 	'dist' 		=>	{COMPRESS => 'gzip -9f',SUFFIX => '.gz'},
-	($] >= 5.005 ?
+	($] >= 5.004 ?
     	(ABSTRACT	=>	'Advanced Tk::Text widget wrapper',
     	 AUTHOR	=>	'Alessandro Iob (alexiob@iname.com)') : ()),
 	'PREREQ_PM' => {'Tk::Text' => 0}

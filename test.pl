@@ -2,8 +2,11 @@
 ##
 #
 # $Author: alex $
-# $Revision: 1.4 $
+# $Revision: 1.5 $
 # $Log: test.pl,v $
+# Revision 1.5  1999/02/19 16:06:52  alex
+# UnFixed use Tk 800
+#
 # Revision 1.4  1999/02/10 16:59:33  alex
 # *** Empty log message ***
 #

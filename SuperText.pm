@@ -1,8 +1,17 @@
 ##
 #
 # $Author: alex $
-# $Revision: 1.28 $
+# $Revision: 1.31 $
 # $Log: SuperText.pm,v $
+# Revision 1.31  1999/03/07 23:04:13  alex
+# Fixed Tk 800 core dump
+#
+# Revision 1.30  1999/02/19 17:12:06  alex
+# Unfixed Tk 800,mouse selection doesn't work
+#
+# Revision 1.29  1999/02/19 16:06:48  alex
+# Fixed use Tk 800
+#
 # Revision 1.28  1999/02/19 13:14:07  alex
 # Fixed backward matching char search
 #
@@ -54,6 +63,7 @@ package Tk::Text::SuperText;
 
 use AutoLoader;
 use Exporter ();
+use Tk qw(800 Ev);
 require Tk::Text;
 require Tk::Derived;
 
@@ -79,12 +89,10 @@ use vars qw($VERSION @ISA @EXPORT);
 	leftTab copy cut paste inlinePaste undo redo destroy keyPress menuSelect noOP
 );
 
-$VERSION = '0.9.1';
+$VERSION = '0.9.2';
 @ISA = qw(Tk::Derived Tk::Text Exporter);
 
 use base qw(Tk::Text);
-
-import Tk qw(Ev);
 
 Construct Tk::Widget 'SuperText';
 
